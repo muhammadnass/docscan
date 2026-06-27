@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>DocScan — OCR to Word</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
+
+    :root {
+      --ink:     #0f1117;
+      --paper:   #f7f6f2;
+      --cream:   #edeade;
+      --accent:  #2a5cff;
+      --accent2: #00c48c;
+      --warn:    #ff4f4f;
+      --muted:   #6b7280;
+      --border:  #d9d6ce;
+      --white:   #ffffff;
+      --shadow:  0 4px 24px rgba(15,17,23,.10);
+      --radius:  16px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── Layout ── */
+    .app {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0 0 32px;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 28px 20px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: var(--ink);
+      border-radius: 10px;
+      display: grid; place-items: center;
+      flex-shrink: 0;
+    }
+    .logo-mark svg { width: 20px; height: 20px; }
+    header h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+    }
+    header span { color: var(--accent); }
+
+    /* ── API Key card ── */
+    .card {
+      margin: 0 16px 14px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+    .card-label {
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .input-row {
+      display: flex; gap: 8px;
+    }
+    .api-input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: .9rem;
+      font-family: 'Inter', monospace;
+      background: var(--paper);
+      color: var(--ink);
+      outline: none;
+      transition: border-color .2s;
+    }
+    .api-input:focus { border-color: var(--accent); }
+    .btn-icon {
+      width: 40px; height: 40px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      background: var(--paper);
+      display: grid; place-items: center;
+      cursor: pointer;
+      font-size: 1.1rem;
+      transition: background .15s;
+    }
+    .btn-icon:active { background: var(--cream); }
+    .api-note {
+      font-size: .72rem;
+      color: var(--muted);
+      margin-top: 7px;
+      line-height: 1.5;
+    }
+    .api-note a { color: var(--accent); text-decoration: none; }
+
+    /* ── Capture zone ── */
+    .capture-zone {
+      margin: 0 16px 14px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      background: var(--ink);
+      aspect-ratio: 3/4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #preview {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+    #preview.active { display: block; }
+    .capture-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      color: rgba(255,255,255,.5);
+      pointer-events: none;
+    }
+    .capture-placeholder svg { opacity: .4; }
+    .capture-placeholder p { font-size: .85rem; letter-spacing: .01em; }
+    .corner { position: absolute; width: 22px; height: 22px; border-color: rgba(255,255,255,.7); border-style: solid; }
+    .corner-tl { top: 14px; left: 14px; border-width: 2px 0 0 2px; border-radius: 3px 0 0 0; }
+    .corner-tr { top: 14px; right: 14px; border-width: 2px 2px 0 0; border-radius: 0 3px 0 0; }
+    .corner-bl { bottom: 14px; left: 14px; border-width: 0 0 2px 2px; border-radius: 0 0 0 3px; }
+    .corner-br { bottom: 14px; right: 14px; border-width: 0 2px 2px 0; border-radius: 0 0 3px 0; }
+
+    /* ── Button group ── */
+    .btn-group {
+      margin: 0 16px 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn {
+      padding: 14px 10px;
+      border-radius: 12px;
+      border: none;
+      font-family: 'Inter', sans-serif;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      transition: transform .12s, opacity .12s;
+      user-select: none;
+    }
+    .btn:active { transform: scale(.96); opacity: .9; }
+    .btn:disabled { opacity: .4; pointer-events: none; }
+    .btn-primary { background: var(--accent); color: var(--white); }
+    .btn-secondary { background: var(--cream); color: var(--ink); border: 1.5px solid var(--border); }
+    .btn-success { background: var(--accent2); color: var(--white); grid-column: 1 / -1; }
+    .btn-full { grid-column: 1 / -1; }
+
+    /* hidden file input */
+    #fileInput { display: none; }
+
+    /* ── Status / result area ── */
+    .status-card {
+      margin: 0 16px 14px;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      font-size: .85rem;
+      line-height: 1.5;
+      display: none;
+    }
+    .status-card.info    { background: #eff4ff; border: 1px solid #c7d7fe; color: #1e40af; }
+    .status-card.success { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+    .status-card.error   { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .status-card.show    { display: block; }
+
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── OCR result preview ── */
+    .result-card {
+      margin: 0 16px 14px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: none;
+    }
+    .result-card.show { display: block; }
+    .result-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .result-header .word-count { font-weight: 400; }
+    #ocrText {
+      width: 100%;
+      min-height: 180px;
+      max-height: 320px;
+      padding: 14px 16px;
+      border: none;
+      resize: vertical;
+      font-family: 'Inter', sans-serif;
+      font-size: .875rem;
+      line-height: 1.65;
+      color: var(--ink);
+      background: transparent;
+      outline: none;
+      overflow-y: auto;
+    }
+
+    /* ── Progress bar ── */
+    .progress-wrap {
+      margin: 0 16px 14px;
+      height: 4px;
+      background: var(--cream);
+      border-radius: 99px;
+      overflow: hidden;
+      display: none;
+    }
+    .progress-wrap.show { display: block; }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px;
+      transition: width .4s ease;
+      width: 0%;
+    }
+
+    /* ── Steps guide ── */
+    .steps-guide {
+      margin: 4px 16px 0;
+      padding: 16px;
+      background: var(--cream);
+      border-radius: var(--radius);
+      font-size: .8rem;
+      color: var(--muted);
+    }
+    .steps-guide ol {
+      padding-left: 1.1em;
+      line-height: 1.9;
+    }
+    .steps-guide b { color: var(--ink); }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-mark">
+      <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="2" width="11" height="14" rx="2" fill="white" opacity=".15"/>
+        <rect x="3" y="2" width="11" height="14" rx="2" stroke="white" stroke-width="1.5"/>
+        <path d="M6 7h5M6 10h5M6 13h3" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="15.5" cy="14.5" r="3.5" fill="#2a5cff"/>
+        <path d="M14 14.5h3M15.5 13v3" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1>Doc<span>Scan</span></h1>
+  </header>
+
+  <!-- API Key -->
+  <div class="card">
+    <div class="card-label">Anthropic API Key</div>
+    <div class="input-row">
+      <input class="api-input" id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" />
+      <button class="btn-icon" id="toggleKey" title="Show/hide key">👁</button>
+    </div>
+    <p class="api-note">
+      Your key stays on your device and is never stored.<br>
+      Get one free at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+    </p>
+  </div>
+
+  <!-- Capture zone -->
+  <div class="capture-zone" id="captureZone">
+    <div class="capture-placeholder" id="placeholder">
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <rect x="8" y="12" width="32" height="26" rx="4" stroke="white" stroke-width="2"/>
+        <circle cx="24" cy="25" r="7" stroke="white" stroke-width="2"/>
+        <circle cx="24" cy="25" r="3" fill="white" opacity=".4"/>
+        <path d="M18 12l2-4h8l2 4" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      <p>Capture or upload your document</p>
+    </div>
+    <img id="preview" alt="Document preview" />
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-card" id="statusCard"></div>
+
+  <!-- Buttons -->
+  <div class="btn-group">
+    <button class="btn btn-primary" id="btnCamera">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="10" rx="2" stroke="white" stroke-width="1.5"/><circle cx="8" cy="9" r="2.5" stroke="white" stroke-width="1.5"/><path d="M5 4l1-2h4l1 2" stroke="white" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      Camera
+    </button>
+    <button class="btn btn-secondary" id="btnUpload">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 10V3M5 6l3-3 3 3" stroke="#0f1117" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1" stroke="#0f1117" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Upload
+    </button>
+    <input type="file" id="fileInput" accept="image/*" capture="environment" />
+    <button class="btn btn-primary btn-full" id="btnScan" disabled>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 5H15M1 11H15" stroke="white" stroke-width="1.5" stroke-linecap="round"/><rect x="1" y="1" width="14" height="14" rx="3" stroke="white" stroke-width="1.5"/></svg>
+      Extract Text with AI
+    </button>
+    <button class="btn btn-success" id="btnDownload" disabled style="display:none">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v7M5 7l3 3 3-3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Download Word Document
+    </button>
+  </div>
+
+  <!-- OCR result editable preview -->
+  <div class="result-card" id="resultCard">
+    <div class="result-header">
+      Extracted Text — edit before downloading
+      <span class="word-count" id="wordCount"></span>
+    </div>
+    <textarea id="ocrText" spellcheck="true" placeholder="Extracted text will appear here…"></textarea>
+  </div>
+
+  <!-- Guide -->
+  <div class="steps-guide">
+    <ol>
+      <li><b>Paste your API key</b> above</li>
+      <li><b>Tap Camera</b> to snap a page, or <b>Upload</b> a photo</li>
+      <li>Tap <b>Extract Text with AI</b></li>
+      <li>Edit the text if needed, then <b>Download Word Doc</b></li>
+    </ol>
+  </div>
+
+</div>
+
+<!-- docx library from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<script>
+/* ─────────────────────────────────────────────
+   State
+───────────────────────────────────────────── */
+let capturedImageBase64 = null;   // base64 string, no prefix
+let capturedImageMime   = 'image/jpeg';
+
+/* ─────────────────────────────────────────────
+   DOM refs
+───────────────────────────────────────────── */
+const apiKeyInput  = document.getElementById('apiKey');
+const toggleKey    = document.getElementById('toggleKey');
+const preview      = document.getElementById('preview');
+const placeholder  = document.getElementById('placeholder');
+const btnCamera    = document.getElementById('btnCamera');
+const btnUpload    = document.getElementById('btnUpload');
+const fileInput    = document.getElementById('fileInput');
+const btnScan      = document.getElementById('btnScan');
+const btnDownload  = document.getElementById('btnDownload');
+const statusCard   = document.getElementById('statusCard');
+const resultCard   = document.getElementById('resultCard');
+const ocrText      = document.getElementById('ocrText');
+const wordCount    = document.getElementById('wordCount');
+const progressWrap = document.getElementById('progressWrap');
+const progressBar  = document.getElementById('progressBar');
+
+/* ─────────────────────────────────────────────
+   Helpers: status & progress
+───────────────────────────────────────────── */
+function setStatus(msg, type = 'info', loading = false) {
+  statusCard.className = `status-card show ${type}`;
+  statusCard.innerHTML = (loading ? `<span class="spinner"></span>` : '') + msg;
+}
+function clearStatus() {
+  statusCard.className = 'status-card';
+}
+function setProgress(pct) {
+  progressWrap.classList.toggle('show', pct > 0 && pct < 100);
+  progressBar.style.width = pct + '%';
+  if (pct >= 100) setTimeout(() => progressWrap.classList.remove('show'), 600);
+}
+function updateWordCount() {
+  const words = ocrText.value.trim().split(/\s+/).filter(Boolean).length;
+  wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+}
+
+/* ─────────────────────────────────────────────
+   API key toggle
+───────────────────────────────────────────── */
+toggleKey.addEventListener('click', () => {
+  apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
+});
+
+/* ─────────────────────────────────────────────
+   Load image into preview
+───────────────────────────────────────────── */
+function loadImage(file) {
+  capturedImageMime = file.type || 'image/jpeg';
+  const reader = new FileReader();
+  reader.onload = e => {
+    const result = e.target.result;            // data:image/jpeg;base64,....
+    capturedImageBase64 = result.split(',')[1]; // strip prefix
+    preview.src = result;
+    preview.classList.add('active');
+    placeholder.style.display = 'none';
+    btnScan.disabled = false;
+    btnDownload.style.display = 'none';
+    btnDownload.disabled = true;
+    resultCard.classList.remove('show');
+    ocrText.value = '';
+    clearStatus();
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ─────────────────────────────────────────────
+   Camera button — opens native camera on mobile
+───────────────────────────────────────────── */
+btnCamera.addEventListener('click', () => {
+  // Create a temporary input that requests the camera
+  const cam = document.createElement('input');
+  cam.type = 'file';
+  cam.accept = 'image/*';
+  cam.capture = 'environment';  // back camera
+  cam.onchange = () => { if (cam.files[0]) loadImage(cam.files[0]); };
+  cam.click();
+});
+
+/* ─────────────────────────────────────────────
+   Upload button — opens gallery/file picker
+───────────────────────────────────────────── */
+btnUpload.addEventListener('click', () => {
+  const gal = document.createElement('input');
+  gal.type = 'file';
+  gal.accept = 'image/*';
+  gal.onchange = () => { if (gal.files[0]) loadImage(gal.files[0]); };
+  gal.click();
+});
+
+/* ─────────────────────────────────────────────
+   OCR — call Anthropic API
+───────────────────────────────────────────── */
+btnScan.addEventListener('click', async () => {
+  const key = apiKeyInput.value.trim();
+  if (!key) { setStatus('Please enter your Anthropic API key first.', 'error'); return; }
+  if (!capturedImageBase64) { setStatus('Please capture or upload a document image first.', 'error'); return; }
+
+  btnScan.disabled = true;
+  btnDownload.style.display = 'none';
+  resultCard.classList.remove('show');
+  setStatus('Sending image to Claude for text extraction…', 'info', true);
+  setProgress(15);
+
+  const prompt = `You are an expert OCR engine. Extract ALL text from this document image with maximum accuracy.
+
+Rules:
+- Output ONLY the extracted text, nothing else
+- Preserve the original paragraph and line structure as faithfully as possible
+- Preserve headings, lists, tables (render tables as tab-separated text)
+- If a word is unclear, make your best guess and continue — do NOT add notes
+- Do not add commentary, preamble, or explanations`;
+
+  try {
+    setProgress(30);
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4096,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: capturedImageMime,
+                data: capturedImageBase64
+              }
+            },
+            { type: 'text', text: prompt }
+          ]
+        }]
+      })
+    });
+
+    setProgress(75);
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      const msg = err?.error?.message || `HTTP ${resp.status}`;
+      throw new Error(msg);
+    }
+
+    const data = await resp.json();
+    const text = data.content?.map(b => b.text || '').join('\n').trim();
+
+    setProgress(100);
+
+    if (!text) throw new Error('No text was extracted from the image.');
+
+    ocrText.value = text;
+    updateWordCount();
+    resultCard.classList.add('show');
+    setStatus('Text extracted successfully! Edit if needed, then download.', 'success');
+    btnDownload.style.display = '';
+    btnDownload.disabled = false;
+
+  } catch (e) {
+    setProgress(0);
+    setStatus(`Error: ${e.message}`, 'error');
+  } finally {
+    btnScan.disabled = false;
+  }
+});
+
+ocrText.addEventListener('input', updateWordCount);
+
+/* ─────────────────────────────────────────────
+   Build & Download .docx
+───────────────────────────────────────────── */
+btnDownload.addEventListener('click', async () => {
+  const raw = ocrText.value.trim();
+  if (!raw) { setStatus('No text to save.', 'error'); return; }
+
+  btnDownload.disabled = true;
+  setStatus('Building Word document…', 'info', true);
+
+  try {
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+
+    // Parse text into paragraphs
+    const lines = raw.split('\n');
+    const children = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      if (!trimmed) {
+        // Empty line → spacer paragraph
+        children.push(new Paragraph({ children: [new TextRun('')], spacing: { after: 120 } }));
+        continue;
+      }
+
+      // Heuristic heading detection: ALL CAPS line ≤ 80 chars, or line ending with ':'
+      const isHeading1 = /^[A-Z0-9\s\-–—:,.]{4,60}$/.test(trimmed) && trimmed === trimmed.toUpperCase() && trimmed.length <= 60;
+      const isHeading2 = trimmed.endsWith(':') && trimmed.length <= 80 && !/[.!?]/.test(trimmed.slice(0, -1));
+
+      // Bullet/list line
+      const bulletMatch = trimmed.match(/^[-•*·]\s+(.+)/) || trimmed.match(/^\d+[.)]\s+(.+)/);
+
+      if (isHeading1) {
+        children.push(new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          children: [new TextRun({ text: trimmed, bold: true, size: 32, font: 'Calibri' })]
+        }));
+      } else if (isHeading2) {
+        children.push(new Paragraph({
+          heading: HeadingLevel.HEADING_2,
+          children: [new TextRun({ text: trimmed, bold: true, size: 26, font: 'Calibri' })]
+        }));
+      } else if (bulletMatch) {
+        children.push(new Paragraph({
+          bullet: { level: 0 },
+          children: [new TextRun({ text: bulletMatch[1], size: 24, font: 'Calibri' })]
+        }));
+      } else {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: trimmed, size: 24, font: 'Calibri' })],
+          spacing: { after: 120 },
+          alignment: AlignmentType.JUSTIFIED
+        }));
+      }
+    }
+
+    const doc = new Document({
+      styles: {
+        default: {
+          document: { run: { font: 'Calibri', size: 24 } }
+        }
+      },
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 11906, height: 16838 }, // A4
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+          }
+        },
+        children
+      }]
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `scanned-document-${Date.now()}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setStatus('Word document downloaded! Check your Downloads folder.', 'success');
+
+  } catch (e) {
+    setStatus(`Download failed: ${e.message}`, 'error');
+  } finally {
+    btnDownload.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
