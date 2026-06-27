@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <title>DocScan — OCR to Word</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
@@ -293,18 +294,7 @@
     <h1>Doc<span>Scan</span></h1>
   </header>
 
-  <!-- API Key -->
-  <div class="card">
-    <div class="card-label">Anthropic API Key</div>
-    <div class="input-row">
-      <input class="api-input" id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" />
-      <button class="btn-icon" id="toggleKey" title="Show/hide key">👁</button>
-    </div>
-    <p class="api-note">
-      Your key stays on your device and is never stored.<br>
-      Get one free at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
-    </p>
-  </div>
+
 
   <!-- Capture zone -->
   <div class="capture-zone" id="captureZone">
@@ -365,9 +355,8 @@
   <!-- Guide -->
   <div class="steps-guide">
     <ol>
-      <li><b>Paste your API key</b> above</li>
       <li><b>Tap Camera</b> to snap a page, or <b>Upload</b> a photo</li>
-      <li>Tap <b>Extract Text with AI</b></li>
+      <li>Tap <b>Extract Text</b> — runs fully on your device, no account needed</li>
       <li>Edit the text if needed, then <b>Download Word Doc</b></li>
     </ol>
   </div>
@@ -386,8 +375,6 @@ let capturedImageMime   = 'image/jpeg';
 /* ─────────────────────────────────────────────
    DOM refs
 ───────────────────────────────────────────── */
-const apiKeyInput  = document.getElementById('apiKey');
-const toggleKey    = document.getElementById('toggleKey');
 const preview      = document.getElementById('preview');
 const placeholder  = document.getElementById('placeholder');
 const btnCamera    = document.getElementById('btnCamera');
@@ -421,13 +408,6 @@ function updateWordCount() {
   const words = ocrText.value.trim().split(/\s+/).filter(Boolean).length;
   wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
 }
-
-/* ─────────────────────────────────────────────
-   API key toggle
-───────────────────────────────────────────── */
-toggleKey.addEventListener('click', () => {
-  apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
-});
 
 /* ─────────────────────────────────────────────
    Load image into preview
@@ -479,66 +459,22 @@ btnUpload.addEventListener('click', () => {
    OCR — call Anthropic API
 ───────────────────────────────────────────── */
 btnScan.addEventListener('click', async () => {
-  const key = apiKeyInput.value.trim();
-  if (!key) { setStatus('Please enter your Anthropic API key first.', 'error'); return; }
   if (!capturedImageBase64) { setStatus('Please capture or upload a document image first.', 'error'); return; }
 
   btnScan.disabled = true;
   btnDownload.style.display = 'none';
   resultCard.classList.remove('show');
-  setStatus('Sending image to Claude for text extraction…', 'info', true);
-  setProgress(15);
-
-  const prompt = `You are an expert OCR engine. Extract ALL text from this document image with maximum accuracy.
-
-Rules:
-- Output ONLY the extracted text, nothing else
-- Preserve the original paragraph and line structure as faithfully as possible
-- Preserve headings, lists, tables (render tables as tab-separated text)
-- If a word is unclear, make your best guess and continue — do NOT add notes
-- Do not add commentary, preamble, or explanations`;
+  setStatus('Running OCR on your document…', 'info', true);
+  setProgress(10);
 
   try {
-    setProgress(30);
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: capturedImageMime,
-                data: capturedImageBase64
-              }
-            },
-            { type: 'text', text: prompt }
-          ]
-        }]
-      })
+    const result = await Tesseract.recognize(preview.src, 'eng', {
+      logger: m => {
+        if (m.status === 'recognizing text') setProgress(Math.round(m.progress * 100));
+      }
     });
 
-    setProgress(75);
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      const msg = err?.error?.message || `HTTP ${resp.status}`;
-      throw new Error(msg);
-    }
-
-    const data = await resp.json();
-    const text = data.content?.map(b => b.text || '').join('\n').trim();
-
+    const text = result.data.text.trim();
     setProgress(100);
 
     if (!text) throw new Error('No text was extracted from the image.');
