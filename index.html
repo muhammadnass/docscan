@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <title>DocScan — OCR to Word</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
@@ -33,7 +32,6 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* ── Layout ── */
     .app {
       min-height: 100dvh;
       display: flex;
@@ -43,7 +41,6 @@
       padding: 0 0 32px;
     }
 
-    /* ── Header ── */
     header {
       padding: 28px 20px 16px;
       display: flex;
@@ -66,7 +63,6 @@
     }
     header span { color: var(--accent); }
 
-    /* ── API Key card ── */
     .card {
       margin: 0 16px 14px;
       background: var(--white);
@@ -83,9 +79,7 @@
       color: var(--muted);
       margin-bottom: 8px;
     }
-    .input-row {
-      display: flex; gap: 8px;
-    }
+    .input-row { display: flex; gap: 8px; }
     .api-input {
       flex: 1;
       padding: 10px 12px;
@@ -118,7 +112,6 @@
     }
     .api-note a { color: var(--accent); text-decoration: none; }
 
-    /* ── Capture zone ── */
     .capture-zone {
       margin: 0 16px 14px;
       border-radius: var(--radius);
@@ -152,7 +145,6 @@
     .corner-bl { bottom: 14px; left: 14px; border-width: 0 0 2px 2px; border-radius: 0 0 0 3px; }
     .corner-br { bottom: 14px; right: 14px; border-width: 0 2px 2px 0; border-radius: 0 0 3px 0; }
 
-    /* ── Button group ── */
     .btn-group {
       margin: 0 16px 14px;
       display: grid;
@@ -173,15 +165,13 @@
     }
     .btn:active { transform: scale(.96); opacity: .9; }
     .btn:disabled { opacity: .4; pointer-events: none; }
-    .btn-primary { background: var(--accent); color: var(--white); }
-    .btn-secondary { background: var(--cream); color: var(--ink); border: 1.5px solid var(--border); }
-    .btn-success { background: var(--accent2); color: var(--white); grid-column: 1 / -1; }
-    .btn-full { grid-column: 1 / -1; }
+    .btn-primary  { background: var(--accent);  color: var(--white); }
+    .btn-secondary{ background: var(--cream);   color: var(--ink); border: 1.5px solid var(--border); }
+    .btn-success  { background: var(--accent2); color: var(--white); grid-column: 1 / -1; }
+    .btn-full     { grid-column: 1 / -1; }
 
-    /* hidden file input */
     #fileInput { display: none; }
 
-    /* ── Status / result area ── */
     .status-card {
       margin: 0 16px 14px;
       padding: 14px 16px;
@@ -207,7 +197,6 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── OCR result preview ── */
     .result-card {
       margin: 0 16px 14px;
       background: var(--white);
@@ -243,7 +232,6 @@
       overflow-y: auto;
     }
 
-    /* ── Progress bar ── */
     .progress-wrap {
       margin: 0 16px 14px;
       height: 4px;
@@ -261,7 +249,6 @@
       width: 0%;
     }
 
-    /* ── Steps guide ── */
     .steps-guide {
       margin: 4px 16px 0;
       padding: 16px;
@@ -270,11 +257,8 @@
       font-size: .8rem;
       color: var(--muted);
     }
-    .steps-guide ol {
-      padding-left: 1.1em;
-      line-height: 1.9;
-    }
-    .steps-guide b { color: var(--ink); }
+    .steps-guide ol { padding-left: 1.1em; line-height: 1.9; }
+    .steps-guide b  { color: var(--ink); }
   </style>
 </head>
 <body>
@@ -294,7 +278,19 @@
     <h1>Doc<span>Scan</span></h1>
   </header>
 
-
+  <!-- API Key -->
+  <div class="card">
+    <div class="card-label">Google AI API Key</div>
+    <div class="input-row">
+      <input class="api-input" id="apiKey" type="password" placeholder="AIza..." autocomplete="off" />
+      <button class="btn-icon" id="toggleKey" title="Show/hide key">👁</button>
+    </div>
+    <p class="api-note">
+      Your key stays on your device and is never stored.<br>
+      Get one free (no credit card) at <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a>
+      → "Get API Key"
+    </p>
+  </div>
 
   <!-- Capture zone -->
   <div class="capture-zone" id="captureZone">
@@ -332,7 +328,7 @@
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 10V3M5 6l3-3 3 3" stroke="#0f1117" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1" stroke="#0f1117" stroke-width="1.5" stroke-linecap="round"/></svg>
       Upload
     </button>
-    <input type="file" id="fileInput" accept="image/*" capture="environment" />
+    <input type="file" id="fileInput" accept="image/*" />
     <button class="btn btn-primary btn-full" id="btnScan" disabled>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 5H15M1 11H15" stroke="white" stroke-width="1.5" stroke-linecap="round"/><rect x="1" y="1" width="14" height="14" rx="3" stroke="white" stroke-width="1.5"/></svg>
       Extract Text with AI
@@ -355,31 +351,29 @@
   <!-- Guide -->
   <div class="steps-guide">
     <ol>
+      <li><b>Paste your Google AI API key</b> above</li>
       <li><b>Tap Camera</b> to snap a page, or <b>Upload</b> a photo</li>
-      <li>Tap <b>Extract Text</b> — runs fully on your device, no account needed</li>
+      <li>Tap <b>Extract Text with AI</b></li>
       <li>Edit the text if needed, then <b>Download Word Doc</b></li>
     </ol>
   </div>
 
 </div>
 
-<!-- docx library from CDN -->
+<!-- docx library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
 <script>
-/* ─────────────────────────────────────────────
-   State
-───────────────────────────────────────────── */
-let capturedImageBase64 = null;   // base64 string, no prefix
+/* ── State ── */
+let capturedImageBase64 = null;
 let capturedImageMime   = 'image/jpeg';
 
-/* ─────────────────────────────────────────────
-   DOM refs
-───────────────────────────────────────────── */
+/* ── DOM refs ── */
+const apiKeyInput  = document.getElementById('apiKey');
+const toggleKey    = document.getElementById('toggleKey');
 const preview      = document.getElementById('preview');
 const placeholder  = document.getElementById('placeholder');
 const btnCamera    = document.getElementById('btnCamera');
 const btnUpload    = document.getElementById('btnUpload');
-const fileInput    = document.getElementById('fileInput');
 const btnScan      = document.getElementById('btnScan');
 const btnDownload  = document.getElementById('btnDownload');
 const statusCard   = document.getElementById('statusCard');
@@ -389,16 +383,12 @@ const wordCount    = document.getElementById('wordCount');
 const progressWrap = document.getElementById('progressWrap');
 const progressBar  = document.getElementById('progressBar');
 
-/* ─────────────────────────────────────────────
-   Helpers: status & progress
-───────────────────────────────────────────── */
+/* ── Helpers ── */
 function setStatus(msg, type = 'info', loading = false) {
   statusCard.className = `status-card show ${type}`;
   statusCard.innerHTML = (loading ? `<span class="spinner"></span>` : '') + msg;
 }
-function clearStatus() {
-  statusCard.className = 'status-card';
-}
+function clearStatus() { statusCard.className = 'status-card'; }
 function setProgress(pct) {
   progressWrap.classList.toggle('show', pct > 0 && pct < 100);
   progressBar.style.width = pct + '%';
@@ -409,15 +399,18 @@ function updateWordCount() {
   wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
 }
 
-/* ─────────────────────────────────────────────
-   Load image into preview
-───────────────────────────────────────────── */
+/* ── API key toggle ── */
+toggleKey.addEventListener('click', () => {
+  apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
+});
+
+/* ── Load image into preview ── */
 function loadImage(file) {
   capturedImageMime = file.type || 'image/jpeg';
   const reader = new FileReader();
   reader.onload = e => {
-    const result = e.target.result;            // data:image/jpeg;base64,....
-    capturedImageBase64 = result.split(',')[1]; // strip prefix
+    const result = e.target.result;
+    capturedImageBase64 = result.split(',')[1];
     preview.src = result;
     preview.classList.add('active');
     placeholder.style.display = 'none';
@@ -431,22 +424,17 @@ function loadImage(file) {
   reader.readAsDataURL(file);
 }
 
-/* ─────────────────────────────────────────────
-   Camera button — opens native camera on mobile
-───────────────────────────────────────────── */
+/* ── Camera — back camera on mobile ── */
 btnCamera.addEventListener('click', () => {
-  // Create a temporary input that requests the camera
   const cam = document.createElement('input');
   cam.type = 'file';
   cam.accept = 'image/*';
-  cam.capture = 'environment';  // back camera
+  cam.capture = 'environment';
   cam.onchange = () => { if (cam.files[0]) loadImage(cam.files[0]); };
   cam.click();
 });
 
-/* ─────────────────────────────────────────────
-   Upload button — opens gallery/file picker
-───────────────────────────────────────────── */
+/* ── Upload — gallery / file picker ── */
 btnUpload.addEventListener('click', () => {
   const gal = document.createElement('input');
   gal.type = 'file';
@@ -455,26 +443,57 @@ btnUpload.addEventListener('click', () => {
   gal.click();
 });
 
-/* ─────────────────────────────────────────────
-   OCR — call Anthropic API
-───────────────────────────────────────────── */
+/* ── OCR — Google Gemini 1.5 Flash ── */
 btnScan.addEventListener('click', async () => {
+  const key = apiKeyInput.value.trim();
+  if (!key) { setStatus('Please enter your Google AI API key first.', 'error'); return; }
   if (!capturedImageBase64) { setStatus('Please capture or upload a document image first.', 'error'); return; }
 
   btnScan.disabled = true;
   btnDownload.style.display = 'none';
   resultCard.classList.remove('show');
-  setStatus('Running OCR on your document…', 'info', true);
-  setProgress(10);
+  setStatus('Sending image to Gemini for text extraction…', 'info', true);
+  setProgress(15);
+
+  const prompt = `You are an expert OCR engine. Extract ALL text from this document image with maximum accuracy.
+
+Rules:
+- Output ONLY the extracted text, nothing else
+- Preserve the original paragraph and line structure as faithfully as possible
+- Preserve headings, lists, tables (render tables as tab-separated text)
+- If a word is unclear, make your best guess and continue — do NOT add notes
+- Do not add commentary, preamble, or explanations`;
 
   try {
-    const result = await Tesseract.recognize(preview.src, 'eng', {
-      logger: m => {
-        if (m.status === 'recognizing text') setProgress(Math.round(m.progress * 100));
-      }
-    });
+    setProgress(30);
 
-    const text = result.data.text.trim();
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: capturedImageMime, data: capturedImageBase64 } },
+              { text: prompt }
+            ]
+          }]
+        })
+      }
+    );
+
+    setProgress(75);
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      const msg = err?.error?.message || `HTTP ${resp.status}`;
+      throw new Error(msg);
+    }
+
+    const data = await resp.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
     setProgress(100);
 
     if (!text) throw new Error('No text was extracted from the image.');
@@ -496,9 +515,7 @@ btnScan.addEventListener('click', async () => {
 
 ocrText.addEventListener('input', updateWordCount);
 
-/* ─────────────────────────────────────────────
-   Build & Download .docx
-───────────────────────────────────────────── */
+/* ── Build & Download .docx ── */
 btnDownload.addEventListener('click', async () => {
   const raw = ocrText.value.trim();
   if (!raw) { setStatus('No text to save.', 'error'); return; }
@@ -509,25 +526,20 @@ btnDownload.addEventListener('click', async () => {
   try {
     const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
 
-    // Parse text into paragraphs
-    const lines = raw.split('\n');
+    const lines    = raw.split('\n');
     const children = [];
 
     for (const line of lines) {
       const trimmed = line.trim();
 
       if (!trimmed) {
-        // Empty line → spacer paragraph
         children.push(new Paragraph({ children: [new TextRun('')], spacing: { after: 120 } }));
         continue;
       }
 
-      // Heuristic heading detection: ALL CAPS line ≤ 80 chars, or line ending with ':'
-      const isHeading1 = /^[A-Z0-9\s\-–—:,.]{4,60}$/.test(trimmed) && trimmed === trimmed.toUpperCase() && trimmed.length <= 60;
-      const isHeading2 = trimmed.endsWith(':') && trimmed.length <= 80 && !/[.!?]/.test(trimmed.slice(0, -1));
-
-      // Bullet/list line
-      const bulletMatch = trimmed.match(/^[-•*·]\s+(.+)/) || trimmed.match(/^\d+[.)]\s+(.+)/);
+      const isHeading1   = /^[A-Z0-9\s\-–—:,.]{4,60}$/.test(trimmed) && trimmed === trimmed.toUpperCase() && trimmed.length <= 60;
+      const isHeading2   = trimmed.endsWith(':') && trimmed.length <= 80 && !/[.!?]/.test(trimmed.slice(0, -1));
+      const bulletMatch  = trimmed.match(/^[-•*·]\s+(.+)/) || trimmed.match(/^\d+[.)]\s+(.+)/);
 
       if (isHeading1) {
         children.push(new Paragraph({
@@ -554,15 +566,11 @@ btnDownload.addEventListener('click', async () => {
     }
 
     const doc = new Document({
-      styles: {
-        default: {
-          document: { run: { font: 'Calibri', size: 24 } }
-        }
-      },
+      styles: { default: { document: { run: { font: 'Calibri', size: 24 } } } },
       sections: [{
         properties: {
           page: {
-            size: { width: 11906, height: 16838 }, // A4
+            size: { width: 11906, height: 16838 },
             margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
           }
         },
