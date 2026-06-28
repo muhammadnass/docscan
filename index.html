@@ -469,7 +469,7 @@ Rules:
     const MODELS = [
       'gemini-2.0-flash-lite',
       'gemini-2.0-flash',
-      'gemini-1.5-flash-latest',
+      'gemini-1.5-flash',
       'gemini-1.5-flash-8b',
     ];
 
@@ -481,8 +481,9 @@ Rules:
       setStatus(`Trying ${model}…`, 'info', true);
       setProgress(20 + i * 12);
 
+      let resp;
       try {
-        const resp = await fetch(
+        resp = await fetch(
           `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`,
           {
             method: 'POST',
@@ -497,32 +498,29 @@ Rules:
             })
           }
         );
-
-        if (!resp.ok) {
-          const err = await resp.json().catch(() => ({}));
-          lastError = err?.error?.message || `HTTP ${resp.status}`;
-          if (resp.status === 429 || lastError.toLowerCase().includes('quota')) continue;
-          throw new Error(lastError);
-        }
-
-        const data = await resp.json();
-        const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (candidate) { text = candidate; break; }
-
-      } catch (innerErr) {
-        lastError = innerErr.message;
-        if (lastError.toLowerCase().includes('quota') || lastError.includes('429')) continue;
-        throw innerErr;
+      } catch (fetchErr) {
+        lastError = fetchErr.message;
+        continue; // network error, try next
       }
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        lastError = err?.error?.message || `HTTP ${resp.status}`;
+        // Always try next model on any error (quota, not found, unsupported)
+        continue;
+      }
+
+      const data = await resp.json();
+      const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      if (candidate) { text = candidate; break; }
+      lastError = 'Empty response from model';
     }
 
     setProgress(80);
 
-    if (!text) throw new Error(`Quota exceeded on all free models. Please wait a few minutes and try again, or set up billing at aistudio.google.com. Last error: ${lastError}`);
+    if (!text) throw new Error(`Could not extract text. All models returned errors. Last: ${lastError}. Please wait a few minutes and retry.`);
 
     setProgress(100);
-
-    if (!text) throw new Error('No text was extracted from the image.');
 
     ocrText.value = text;
     updateWordCount();
