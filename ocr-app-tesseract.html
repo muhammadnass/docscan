@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>DocScan Lite — OCR to Word</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
+
+    :root {
+      --ink:     #0f1117;
+      --paper:   #f7f6f2;
+      --cream:   #edeade;
+      --accent:  #00b87a;
+      --accent2: #007a52;
+      --muted:   #6b7280;
+      --border:  #d9d6ce;
+      --white:   #ffffff;
+      --shadow:  0 4px 24px rgba(15,17,23,.10);
+      --radius:  16px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .app {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0 0 32px;
+    }
+
+    header {
+      padding: 28px 20px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: 10px;
+      display: grid; place-items: center;
+      flex-shrink: 0;
+    }
+    .logo-mark svg { width: 20px; height: 20px; }
+    header h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+    }
+    header span { color: var(--accent); }
+    .badge {
+      margin-left: auto;
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+      border-radius: 99px;
+      font-size: .7rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      letter-spacing: .03em;
+      white-space: nowrap;
+    }
+
+    /* info card */
+    .info-card {
+      margin: 0 16px 14px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .info-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
+    .info-text { font-size: .8rem; color: #065f46; line-height: 1.55; }
+    .info-text b { font-weight: 600; }
+
+    /* language selector */
+    .lang-card {
+      margin: 0 16px 14px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+    }
+    .card-label {
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .lang-select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: .9rem;
+      font-family: 'Inter', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      cursor: pointer;
+    }
+    .lang-select:focus { border-color: var(--accent); }
+
+    /* capture zone */
+    .capture-zone {
+      margin: 0 16px 14px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      background: var(--ink);
+      aspect-ratio: 3/4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #preview {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+    #preview.active { display: block; }
+    .capture-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      color: rgba(255,255,255,.5);
+      pointer-events: none;
+    }
+    .capture-placeholder p { font-size: .85rem; }
+    .corner { position: absolute; width: 22px; height: 22px; border-color: rgba(255,255,255,.7); border-style: solid; }
+    .corner-tl { top: 14px; left: 14px; border-width: 2px 0 0 2px; border-radius: 3px 0 0 0; }
+    .corner-tr { top: 14px; right: 14px; border-width: 2px 2px 0 0; border-radius: 0 3px 0 0; }
+    .corner-bl { bottom: 14px; left: 14px; border-width: 0 0 2px 2px; border-radius: 0 0 0 3px; }
+    .corner-br { bottom: 14px; right: 14px; border-width: 0 2px 2px 0; border-radius: 0 0 3px 0; }
+
+    /* buttons */
+    .btn-group {
+      margin: 0 16px 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn {
+      padding: 14px 10px;
+      border-radius: 12px;
+      border: none;
+      font-family: 'Inter', sans-serif;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      transition: transform .12s, opacity .12s;
+      user-select: none;
+    }
+    .btn:active  { transform: scale(.96); opacity: .9; }
+    .btn:disabled { opacity: .4; pointer-events: none; }
+    .btn-primary   { background: var(--accent);  color: var(--white); }
+    .btn-secondary { background: var(--cream);   color: var(--ink); border: 1.5px solid var(--border); }
+    .btn-success   { background: var(--accent2); color: var(--white); grid-column: 1 / -1; }
+    .btn-full      { grid-column: 1 / -1; }
+
+    /* status */
+    .status-card {
+      margin: 0 16px 14px;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      font-size: .85rem;
+      line-height: 1.5;
+      display: none;
+    }
+    .status-card.info    { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .status-card.success { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+    .status-card.error   { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .status-card.show    { display: block; }
+
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* progress */
+    .progress-wrap {
+      margin: 0 16px 14px;
+      height: 6px;
+      background: var(--cream);
+      border-radius: 99px;
+      overflow: hidden;
+      display: none;
+    }
+    .progress-wrap.show { display: block; }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px;
+      transition: width .3s ease;
+      width: 0%;
+    }
+
+    /* result */
+    .result-card {
+      margin: 0 16px 14px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: none;
+    }
+    .result-card.show { display: block; }
+    .result-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    #ocrText {
+      width: 100%;
+      min-height: 180px;
+      max-height: 320px;
+      padding: 14px 16px;
+      border: none;
+      resize: vertical;
+      font-family: 'Inter', sans-serif;
+      font-size: .875rem;
+      line-height: 1.65;
+      color: var(--ink);
+      background: transparent;
+      outline: none;
+      overflow-y: auto;
+    }
+
+    /* confidence badge inside result */
+    .confidence-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: .7rem;
+      font-weight: 600;
+    }
+    .conf-high { background: #ecfdf5; color: #065f46; }
+    .conf-mid  { background: #fffbeb; color: #92400e; }
+    .conf-low  { background: #fef2f2; color: #991b1b; }
+
+    /* steps guide */
+    .steps-guide {
+      margin: 4px 16px 0;
+      padding: 16px;
+      background: var(--cream);
+      border-radius: var(--radius);
+      font-size: .8rem;
+      color: var(--muted);
+    }
+    .steps-guide ol { padding-left: 1.1em; line-height: 1.9; }
+    .steps-guide b  { color: var(--ink); }
+
+    /* tip about other version */
+    .version-link {
+      margin: 12px 16px 0;
+      text-align: center;
+      font-size: .75rem;
+      color: var(--muted);
+    }
+    .version-link a { color: var(--accent2); text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-mark">
+      <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="2" width="11" height="14" rx="2" fill="white" opacity=".2"/>
+        <rect x="3" y="2" width="11" height="14" rx="2" stroke="white" stroke-width="1.5"/>
+        <path d="M6 7h5M6 10h5M6 13h3" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="15.5" cy="14.5" r="3.5" fill="white" opacity=".9"/>
+        <path d="M14 14.5h3M15.5 13v3" stroke="#00b87a" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1>Doc<span>Scan</span> Lite</h1>
+    <span class="badge">✦ No API Key</span>
+  </header>
+
+  <!-- Info banner -->
+  <div class="info-card">
+    <span class="info-icon">⚡</span>
+    <div class="info-text">
+      <b>Runs entirely on your device.</b> No internet needed after first load,
+      no API key, no usage limits. Best on clear, printed text.
+    </div>
+  </div>
+
+  <!-- Language selector -->
+  <div class="lang-card">
+    <div class="card-label">Document Language</div>
+    <select class="lang-select" id="langSelect">
+      <option value="eng">English</option>
+      <option value="fra">French</option>
+      <option value="deu">German</option>
+      <option value="spa">Spanish</option>
+      <option value="por">Portuguese</option>
+      <option value="ita">Italian</option>
+      <option value="ara">Arabic</option>
+      <option value="chi_sim">Chinese (Simplified)</option>
+      <option value="hin">Hindi</option>
+      <option value="rus">Russian</option>
+      <option value="jpn">Japanese</option>
+      <option value="kor">Korean</option>
+      <option value="tur">Turkish</option>
+      <option value="pol">Polish</option>
+      <option value="nld">Dutch</option>
+      <option value="swa">Swahili</option>
+      <option value="hau">Hausa</option>
+      <option value="yor">Yoruba</option>
+      <option value="ibo">Igbo</option>
+    </select>
+  </div>
+
+  <!-- Capture zone -->
+  <div class="capture-zone" id="captureZone">
+    <div class="capture-placeholder" id="placeholder">
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <rect x="8" y="12" width="32" height="26" rx="4" stroke="white" stroke-width="2"/>
+        <circle cx="24" cy="25" r="7" stroke="white" stroke-width="2"/>
+        <circle cx="24" cy="25" r="3" fill="white" opacity=".4"/>
+        <path d="M18 12l2-4h8l2 4" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      <p>Capture or upload your document</p>
+    </div>
+    <img id="preview" alt="Document preview" />
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-card" id="statusCard"></div>
+
+  <!-- Buttons -->
+  <div class="btn-group">
+    <button class="btn btn-primary" id="btnCamera">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="10" rx="2" stroke="white" stroke-width="1.5"/><circle cx="8" cy="9" r="2.5" stroke="white" stroke-width="1.5"/><path d="M5 4l1-2h4l1 2" stroke="white" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      Camera
+    </button>
+    <button class="btn btn-secondary" id="btnUpload">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 10V3M5 6l3-3 3 3" stroke="#0f1117" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1" stroke="#0f1117" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Upload
+    </button>
+    <button class="btn btn-primary btn-full" id="btnScan" disabled>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 5H15M1 11H15" stroke="white" stroke-width="1.5" stroke-linecap="round"/><rect x="1" y="1" width="14" height="14" rx="3" stroke="white" stroke-width="1.5"/></svg>
+      Extract Text (On-Device)
+    </button>
+    <button class="btn btn-success" id="btnDownload" disabled style="display:none">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v7M5 7l3 3 3-3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Download Word Document
+    </button>
+  </div>
+
+  <!-- OCR result -->
+  <div class="result-card" id="resultCard">
+    <div class="result-header">
+      Extracted Text — edit before downloading
+      <span id="confidencePill"></span>
+    </div>
+    <textarea id="ocrText" spellcheck="true" placeholder="Extracted text will appear here…"></textarea>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps-guide">
+    <ol>
+      <li><b>Select language</b> of your document above</li>
+      <li><b>Tap Camera</b> to snap a page, or <b>Upload</b> a photo</li>
+      <li>Tap <b>Extract Text (On-Device)</b></li>
+      <li>Edit the text if needed, then <b>Download Word Doc</b></li>
+    </ol>
+  </div>
+
+  <!-- Link to Gemini version -->
+  <p class="version-link">
+    Want AI-powered OCR? Try
+    <a href="ocr-app-gemini.html">DocScan (Gemini version) →</a>
+  </p>
+
+</div>
+
+<!-- docx library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<script>
+/* ── State ── */
+let capturedImageBase64 = null;
+let capturedImageMime   = 'image/jpeg';
+
+/* ── DOM refs ── */
+const langSelect   = document.getElementById('langSelect');
+const preview      = document.getElementById('preview');
+const placeholder  = document.getElementById('placeholder');
+const btnCamera    = document.getElementById('btnCamera');
+const btnUpload    = document.getElementById('btnUpload');
+const btnScan      = document.getElementById('btnScan');
+const btnDownload  = document.getElementById('btnDownload');
+const statusCard   = document.getElementById('statusCard');
+const resultCard   = document.getElementById('resultCard');
+const ocrText      = document.getElementById('ocrText');
+const confidencePill = document.getElementById('confidencePill');
+const progressWrap = document.getElementById('progressWrap');
+const progressBar  = document.getElementById('progressBar');
+
+/* ── Helpers ── */
+function setStatus(msg, type = 'info', loading = false) {
+  statusCard.className = `status-card show ${type}`;
+  statusCard.innerHTML = (loading ? `<span class="spinner"></span>` : '') + msg;
+}
+function clearStatus() { statusCard.className = 'status-card'; }
+function setProgress(pct) {
+  progressWrap.classList.toggle('show', pct > 0 && pct < 100);
+  progressBar.style.width = pct + '%';
+  if (pct >= 100) setTimeout(() => progressWrap.classList.remove('show'), 700);
+}
+
+/* ── Load image into preview ── */
+function loadImage(file) {
+  capturedImageMime = file.type || 'image/jpeg';
+  const reader = new FileReader();
+  reader.onload = e => {
+    const result = e.target.result;
+    capturedImageBase64 = result.split(',')[1];
+    preview.src = result;
+    preview.classList.add('active');
+    placeholder.style.display = 'none';
+    btnScan.disabled = false;
+    btnDownload.style.display = 'none';
+    btnDownload.disabled = true;
+    resultCard.classList.remove('show');
+    ocrText.value = '';
+    confidencePill.textContent = '';
+    clearStatus();
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ── Camera ── */
+btnCamera.addEventListener('click', () => {
+  const cam = document.createElement('input');
+  cam.type = 'file';
+  cam.accept = 'image/*';
+  cam.capture = 'environment';
+  cam.onchange = () => { if (cam.files[0]) loadImage(cam.files[0]); };
+  cam.click();
+});
+
+/* ── Upload ── */
+btnUpload.addEventListener('click', () => {
+  const gal = document.createElement('input');
+  gal.type = 'file';
+  gal.accept = 'image/*';
+  gal.onchange = () => { if (gal.files[0]) loadImage(gal.files[0]); };
+  gal.click();
+});
+
+/* ── OCR with Tesseract.js ── */
+btnScan.addEventListener('click', async () => {
+  if (!capturedImageBase64) {
+    setStatus('Please capture or upload a document image first.', 'error');
+    return;
+  }
+
+  btnScan.disabled = true;
+  btnDownload.style.display = 'none';
+  resultCard.classList.remove('show');
+  setProgress(5);
+  setStatus('Loading OCR engine…', 'info', true);
+
+  const lang = langSelect.value;
+
+  try {
+    const result = await Tesseract.recognize(
+      preview.src,
+      lang,
+      {
+        logger: m => {
+          if (m.status === 'loading tesseract core') {
+            setStatus('Loading OCR engine…', 'info', true);
+            setProgress(10);
+          } else if (m.status === 'initializing tesseract') {
+            setStatus('Initializing…', 'info', true);
+            setProgress(20);
+          } else if (m.status === 'loading language traineddata') {
+            setStatus(`Loading ${lang} language data…`, 'info', true);
+            setProgress(35);
+          } else if (m.status === 'initializing api') {
+            setStatus('Preparing…', 'info', true);
+            setProgress(50);
+          } else if (m.status === 'recognizing text') {
+            const pct = Math.round(50 + m.progress * 45);
+            setStatus(`Recognizing text… ${Math.round(m.progress * 100)}%`, 'info', true);
+            setProgress(pct);
+          }
+        }
+      }
+    );
+
+    setProgress(100);
+
+    const text = result.data.text.trim();
+    if (!text) throw new Error('No text found. Try a clearer image or check the document language.');
+
+    // Calculate average confidence
+    const avgConf = Math.round(result.data.confidence);
+    let pillClass, pillLabel;
+    if (avgConf >= 75)      { pillClass = 'conf-high'; pillLabel = `${avgConf}% confidence`; }
+    else if (avgConf >= 45) { pillClass = 'conf-mid';  pillLabel = `${avgConf}% confidence`; }
+    else                    { pillClass = 'conf-low';  pillLabel = `${avgConf}% — check result`; }
+
+    confidencePill.innerHTML = `<span class="confidence-pill ${pillClass}">${pillLabel}</span>`;
+    ocrText.value = text;
+    resultCard.classList.add('show');
+    setStatus('Text extracted! Edit if needed, then download.', 'success');
+    btnDownload.style.display = '';
+    btnDownload.disabled = false;
+
+  } catch (e) {
+    setProgress(0);
+    setStatus(`Error: ${e.message}`, 'error');
+  } finally {
+    btnScan.disabled = false;
+  }
+});
+
+/* ── Build & Download .docx ── */
+btnDownload.addEventListener('click', async () => {
+  const raw = ocrText.value.trim();
+  if (!raw) { setStatus('No text to save.', 'error'); return; }
+
+  btnDownload.disabled = true;
+  setStatus('Building Word document…', 'info', true);
+
+  try {
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+
+    const lines    = raw.split('\n');
+    const children = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      if (!trimmed) {
+        children.push(new Paragraph({ children: [new TextRun('')], spacing: { after: 120 } }));
+        continue;
+      }
+
+      const isHeading1  = /^[A-Z0-9\s\-–—:,.]{4,60}$/.test(trimmed) && trimmed === trimmed.toUpperCase() && trimmed.length <= 60;
+      const isHeading2  = trimmed.endsWith(':') && trimmed.length <= 80 && !/[.!?]/.test(trimmed.slice(0, -1));
+      const bulletMatch = trimmed.match(/^[-•*·]\s+(.+)/) || trimmed.match(/^\d+[.)]\s+(.+)/);
+
+      if (isHeading1) {
+        children.push(new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          children: [new TextRun({ text: trimmed, bold: true, size: 32, font: 'Calibri' })]
+        }));
+      } else if (isHeading2) {
+        children.push(new Paragraph({
+          heading: HeadingLevel.HEADING_2,
+          children: [new TextRun({ text: trimmed, bold: true, size: 26, font: 'Calibri' })]
+        }));
+      } else if (bulletMatch) {
+        children.push(new Paragraph({
+          bullet: { level: 0 },
+          children: [new TextRun({ text: bulletMatch[1], size: 24, font: 'Calibri' })]
+        }));
+      } else {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: trimmed, size: 24, font: 'Calibri' })],
+          spacing: { after: 120 },
+          alignment: AlignmentType.JUSTIFIED
+        }));
+      }
+    }
+
+    const doc = new Document({
+      styles: { default: { document: { run: { font: 'Calibri', size: 24 } } } },
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 11906, height: 16838 },
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+          }
+        },
+        children
+      }]
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `scanned-document-${Date.now()}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setStatus('Word document downloaded! Check your Downloads folder.', 'success');
+
+  } catch (e) {
+    setStatus(`Download failed: ${e.message}`, 'error');
+  } finally {
+    btnDownload.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
